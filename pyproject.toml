@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hmmcma"
+version = "0.1.0"
+description = "Standalone HMM state annotation helpers for movingpandas workflows"
+requires-python = ">=3.9"
+authors = [
+    { name = "Omar Chatila" },
+    { name = "Mart Hagedoorn" },
+    { name = "Kevin Buchin" },
+]
+dependencies = [
+    "geopandas",
+    "hmmlearn",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+]
+
+[tool.setuptools]
+packages = ["hmmcma"]
+package-dir = { "hmmcma" = "." }
