@@ -5,6 +5,8 @@ from importlib import import_module
 _EXPORTS = {
     "ColumnConfig": "preprocessing",
     "HMMStateAnnotator": "state_annotation",
+    "apply_moveapps_id_dtype_patch": "move_apps_patch",
+    "annotate_states" : "state_annotation",
     "angle_diff": "utils",
     "annotate_states_gdf": "state_annotation",
     "apply_hmm": "models",

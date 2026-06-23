@@ -25,11 +25,11 @@ class HMMStateAnnotator:
 
 def annotate_states_gdf(
     gdf,
-    id_cols="individual-local-identifier",
+    id_cols="individual_local_identifier",
     time_col="timestamp",
     geom_col="geometry",
     provided_dir_col="direction",
-    feature_cols=("distance", "angular_difference", "speed", "terrain"),
+    feature_cols=("distance", "angular_difference", "speed"),
     scale=True,
     num_states=3,
 ):
@@ -42,3 +42,14 @@ def annotate_states_gdf(
     )
     annotator = HMMStateAnnotator(columns=columns, scale=scale, num_states=num_states)
     return annotator.annotate(gdf)
+
+def annotate_states(traj_col, num_states=3):
+    import movingpandas as mpd
+    traj_col.add_speed()
+    traj_col.add_angular_difference()
+    traj_col.add_distance()
+    traj_col.add_direction()
+    annotated, trajectories, threshold, state_mapping = annotate_states_gdf(gdf=traj_col.to_point_gdf(), num_states=num_states)
+    output = mpd.TrajectoryCollection(annotated, traj_col.get_traj_id_col())
+    print(state_mapping)
+    return output

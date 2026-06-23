@@ -1,3 +1,11 @@
+import numpy as np
+
+def converged_cleanly(model) -> bool:
+    precision = np.finfo(float).eps ** 0.5
+    history = np.array(model.monitor_.history)
+    return bool(np.all(np.diff(history) >= -precision))
+
+
 def apply_hmm(arrays, seq_dfs, n_components=3, columns=None):
     import numpy as np
     from hmmlearn.hmm import GaussianHMM
@@ -8,7 +16,7 @@ def apply_hmm(arrays, seq_dfs, n_components=3, columns=None):
     stacked = np.vstack(arrays)
     best_model = None
     best_score = -np.inf
-
+    has_converged = False
     for seed in range(10):
         model = GaussianHMM(
             n_components=n_components,
@@ -20,9 +28,16 @@ def apply_hmm(arrays, seq_dfs, n_components=3, columns=None):
         )
         model.fit(stacked, lengths)
         score = model.score(stacked, lengths)
+        if converged_cleanly(model) and not has_converged:
+            has_converged = True
         if score > best_score:
             best_score = score
             best_model = model
+
+    if not has_converged:
+        print("Model did not converge.")
+    else:
+        print(f"Model converged after {model.n_iter} iterations.")
 
     stacked_state_seq = best_model.predict(stacked)
     speed_column_index = list(columns.feature_cols).index("speed")
