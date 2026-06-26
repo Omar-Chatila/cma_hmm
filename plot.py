@@ -27,10 +27,17 @@ def _point_data(annotation):
 
 
 def _state_colours(states: pd.Series, cmap: str) -> Mapping[int, tuple]:
-    valid_ids = sorted(int(state) for state in states.dropna().unique() if int(state) >= 0)
-    colour_map = plt.get_cmap(cmap, max(len(valid_ids), 1))
-    colours = {segment: colour_map(index) for index, segment in enumerate(valid_ids)}
-    colours[-1] = (0.65, 0.65, 0.65, 1.0)  # points omitted by preprocessing
+    state_ids = sorted(pd.to_numeric(states, errors="coerce").dropna().astype(int).unique())
+    colour_map = plt.get_cmap(cmap)
+    colours = {}
+    for state in state_ids:
+        if state == -1:
+            colours[state] = (0.65, 0.65, 0.65, 1.0)  # points omitted by preprocessing
+        elif state >= 0:
+            # Map by the actual state id, not by the order of states present in
+            # this particular plot.  This keeps state 0/1/2/... comparable
+            # across HMM, BCPA, and moveHMM outputs.
+            colours[state] = colour_map(state % colour_map.N)
     return colours
 
 
@@ -86,7 +93,8 @@ def plot_states(
     time_col = "_hmmcma_plot_time"
     points[time_col] = pd.to_datetime(points.index)
     points = points.sort_values([id_col, time_col])
-    colours = _state_colours(points["state"], cmap)
+    plot_states_series = points["state"].fillna(-1)
+    colours = _state_colours(plot_states_series, cmap)
     fig, (trajectory_axis, timeline_axis) = plt.subplots(
         2, 1, figsize=figsize, constrained_layout=True, gridspec_kw={"height_ratios": (3, 1)}
     )
@@ -95,7 +103,7 @@ def plot_states(
     # directly on its points.
     for trajectory_id, frame in points.groupby(id_col, sort=False):
         trajectory_axis.plot(frame[x_col], frame[y_col], color="0.75", linewidth=0.8, zorder=1)
-        point_colours = [colours.get(int(state), colours[-1]) for state in frame["state"].fillna(-1)]
+        point_colours = [colours.get(int(state), (0.65, 0.65, 0.65, 1.0)) for state in frame["state"].fillna(-1)]
         trajectory_axis.scatter(frame[x_col], frame[y_col], c=point_colours, s=14, zorder=2)
     trajectory_axis.set(title="Trajectory states", xlabel=x_col, ylabel=y_col, aspect="equal")
 
@@ -112,7 +120,7 @@ def plot_states(
                 width,
                 left=start_number,
                 height=0.7,
-                color=colours.get(state, colours[-1]),
+                color=colours.get(state, (0.65, 0.65, 0.65, 1.0)),
                 edgecolor="none",
             )
     timeline_axis.set(

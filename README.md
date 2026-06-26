@@ -31,9 +31,9 @@ to configure id, time, or UTM column names.
 
 ```python
 bcpa.plot("states.png")
+hmm.plot("states.png")
 ```
 
 The top panel draws trajectory points in one colour per shared `state`; the
 bottom panel shows the same states as horizontal, time-based bars. Both `HMM`
-and `BCPA` inherit the same `plot()` method. To plot a different result, use
-`bcpa.plot("other-states.png", annotation=other_result)`.
+and `BCPA` inherit the same `plot()` method.
