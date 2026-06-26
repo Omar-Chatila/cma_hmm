@@ -27,3 +27,11 @@ def __getattr__(name):
     value = getattr(module, name)
     globals()[name] = value
     return value
+"""Common HMM and BCPA behavioural annotation tools."""
+
+from .BCPA import BCPA, BCPAAnnotator
+from .preprocessing import ColumnConfig, Feature
+from .plot import plot_segments, plot_states
+from .state_annotation import HMM, HMMStateAnnotator
+
+__all__ = ["BCPA", "BCPAAnnotator", "ColumnConfig", "Feature", "HMM", "HMMStateAnnotator", "plot_segments", "plot_states"]
