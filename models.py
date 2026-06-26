@@ -1,70 +1,74 @@
+"""Model fitting helpers shared by the HMM annotator and legacy callers."""
+
+from __future__ import annotations
+
 import numpy as np
 
+
 def converged_cleanly(model) -> bool:
-    precision = np.finfo(float).eps ** 0.5
-    history = np.array(model.monitor_.history)
-    return bool(np.all(np.diff(history) >= -precision))
+    """Treat tiny likelihood decreases as numerical noise."""
+    precision = np.finfo(float).eps**0.5
+    history = np.asarray(model.monitor_.history)
+    return len(history) > 1 and bool(np.all(np.diff(history) >= -precision))
 
 
-def apply_hmm(arrays, seq_dfs, n_components=3, columns=None):
-    import numpy as np
+def fit_gaussian_hmm(
+    arrays: list[np.ndarray],
+    n_components: int = 3,
+    n_iter: int = 500,
+    random_seeds=range(10),
+):
+    """Fit several GaussianHMM initialisations and return the best model."""
     from hmmlearn.hmm import GaussianHMM
 
-    from .preprocessing import process_trajectories
-
-    lengths = [arr.shape[0] for arr in arrays]
+    if not arrays:
+        raise ValueError("No valid trajectory sequences are available for HMM fitting.")
     stacked = np.vstack(arrays)
+    if len(stacked) < n_components:
+        raise ValueError("n_components cannot exceed the number of prepared observations.")
+    lengths = [len(array) for array in arrays]
     best_model = None
     best_score = -np.inf
-    has_converged = False
-    for seed in range(10):
+    any_converged = False
+    for seed in random_seeds:
         model = GaussianHMM(
             n_components=n_components,
             covariance_type="diag",
-            n_iter=500,
+            n_iter=n_iter,
             tol=1e-3,
             min_covar=1e-2,
             random_state=seed,
         )
         model.fit(stacked, lengths)
         score = model.score(stacked, lengths)
-        if converged_cleanly(model) and not has_converged:
-            has_converged = True
         if score > best_score:
             best_score = score
             best_model = model
+        any_converged = any_converged or converged_cleanly(model)
+    return best_model, {"score": float(best_score), "converged": any_converged}
 
-    if not has_converged:
-        print("Model did not converge.")
-    else:
-        print(f"Model converged after {model.n_iter} iterations.")
 
-    stacked_state_seq = best_model.predict(stacked)
-    speed_column_index = list(columns.feature_cols).index("speed")
+def apply_hmm(arrays, seq_dfs, n_components=3, columns=None):
+    """Backward-compatible low-level HMM application.
 
-    state_speeds = []
-    for k in range(n_components):
-        idx = stacked_state_seq == k
-        state_speeds.append(np.mean(stacked[idx, speed_column_index]))
-
+    Prefer ``state_annotation.HMM(...).annotate(trajectory_collection)`` for
+    the common pipeline and an annotated ``TrajectoryCollection`` result.
+    """
+    model, metadata = fit_gaussian_hmm(arrays, n_components=n_components)
+    speed_index = list(columns.feature_cols).index("speed") if columns and "speed" in columns.feature_cols else 0
+    stacked = np.vstack(arrays)
+    raw_states = model.predict(stacked)
+    state_speeds = [float(np.mean(stacked[raw_states == state, speed_index])) for state in range(n_components)]
     order = np.argsort(state_speeds)
-    model_state_mapping = {old: new for new, old in enumerate(order)}
+    mapping = {int(old): int(new) for new, old in enumerate(order)}
 
+    for frame, array in zip(seq_dfs, arrays):
+        frame["state"] = [mapping[int(state)] for state in model.predict(array)]
     state_mappings = {
-        "model_state_mapping": model_state_mapping,
+        "model_state_mapping": mapping,
         "state_speeds": state_speeds,
         "order": order,
-        "state_names": {0: "resting", 1: "foraging", 2: "traveling"},
+        "state_names": {index: f"state_{index}" for index in range(n_components)},
+        **metadata,
     }
-
-    state_seqs = []
-    for arr in arrays:
-        raw_states = best_model.predict(arr)
-        mapped_states = np.array([model_state_mapping[s] for s in raw_states])
-        state_seqs.append(mapped_states)
-
-    for df, states in zip(seq_dfs, state_seqs):
-        df["state"] = states
-
-    animal_trajectories, dt_threshold = process_trajectories(seq_dfs, columns)
-    return animal_trajectories, dt_threshold, state_mappings
+    return seq_dfs, None, state_mappings

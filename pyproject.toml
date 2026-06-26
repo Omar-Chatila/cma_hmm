@@ -15,6 +15,7 @@ authors = [
 dependencies = [
     "geopandas",
     "movingpandas",
+    "ruptures",
     "hmmlearn",
     "numpy",
     "pandas",
