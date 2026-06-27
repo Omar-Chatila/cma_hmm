@@ -4,7 +4,6 @@ from importlib import import_module
 
 _EXPORTS = {
     "ColumnConfig": "preprocessing",
-    "HMMStateAnnotator": "state_annotation",
     "apply_moveapps_id_dtype_patch": "move_apps_patch",
     "annotate_states" : "state_annotation",
     "angle_diff": "utils",
@@ -32,6 +31,6 @@ def __getattr__(name):
 from .BCPA import BCPA, BCPAAnnotator
 from .preprocessing import ColumnConfig, Feature
 from .plot import plot_segments, plot_states
-from .state_annotation import HMM, HMMStateAnnotator
+from .state_annotation import HMM
 
-__all__ = ["BCPA", "BCPAAnnotator", "ColumnConfig", "Feature", "HMM", "HMMStateAnnotator", "plot_segments", "plot_states"]
+__all__ = ["BCPA", "BCPAAnnotator", "ColumnConfig", "Feature", "HMM", "plot_segments", "plot_states"]
