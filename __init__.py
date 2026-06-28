@@ -1,36 +1,21 @@
-"""Standalone HMM state annotation helpers for movement trajectories."""
+"""Common HMM, BCPA, and BCPA-smoothed HMM annotation tools."""
 
-from importlib import import_module
-
-_EXPORTS = {
-    "ColumnConfig": "preprocessing",
-    "apply_moveapps_id_dtype_patch": "move_apps_patch",
-    "annotate_states" : "state_annotation",
-    "angle_diff": "utils",
-    "annotate_states_gdf": "state_annotation",
-    "apply_hmm": "models",
-    "detect_typical_interval": "utils",
-    "merge_states_to_gdf": "utils",
-    "preprocess_hmm": "preprocessing",
-    "process_trajectories": "preprocessing",
-}
-
-__all__ = sorted(_EXPORTS)
-
-
-def __getattr__(name):
-    if name not in _EXPORTS:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-    module = import_module(f"{__name__}.{_EXPORTS[name]}")
-    value = getattr(module, name)
-    globals()[name] = value
-    return value
-"""Common HMM and BCPA behavioural annotation tools."""
-
-from .BCPA import BCPA, BCPAAnnotator
-from .preprocessing import ColumnConfig, Feature
+from .BCPA import BCPA
+from .annotation import AnnotationResult, BaseAnnotator, compare_state_feature_summaries, state_feature_summary
+from .hybrid_annotation import BCPAHMM
 from .plot import plot_segments, plot_states
+from .preprocessing import Feature
 from .state_annotation import HMM
 
-__all__ = ["BCPA", "BCPAAnnotator", "ColumnConfig", "Feature", "HMM", "plot_segments", "plot_states"]
+__all__ = [
+    "AnnotationResult",
+    "BCPA",
+    "BCPAHMM",
+    "BaseAnnotator",
+    "Feature",
+    "HMM",
+    "compare_state_feature_summaries",
+    "plot_segments",
+    "plot_states",
+    "state_feature_summary",
+]
