@@ -1,4 +1,4 @@
-"""Model fitting helpers shared by the HMM annotator and legacy callers."""
+"""Model fitting helpers shared by behavioural annotators."""
 
 from __future__ import annotations
 
@@ -46,29 +46,3 @@ def fit_gaussian_hmm(
             best_model = model
         any_converged = any_converged or converged_cleanly(model)
     return best_model, {"score": float(best_score), "converged": any_converged}
-
-
-def apply_hmm(arrays, seq_dfs, n_components=3, columns=None):
-    """Backward-compatible low-level HMM application.
-
-    Prefer ``state_annotation.HMM(...).annotate(trajectory_collection)`` for
-    the common pipeline and an annotated ``TrajectoryCollection`` result.
-    """
-    model, metadata = fit_gaussian_hmm(arrays, n_components=n_components)
-    speed_index = list(columns.feature_cols).index("speed") if columns and "speed" in columns.feature_cols else 0
-    stacked = np.vstack(arrays)
-    raw_states = model.predict(stacked)
-    state_speeds = [float(np.mean(stacked[raw_states == state, speed_index])) for state in range(n_components)]
-    order = np.argsort(state_speeds)
-    mapping = {int(old): int(new) for new, old in enumerate(order)}
-
-    for frame, array in zip(seq_dfs, arrays):
-        frame["state"] = [mapping[int(state)] for state in model.predict(array)]
-    state_mappings = {
-        "model_state_mapping": mapping,
-        "state_speeds": state_speeds,
-        "order": order,
-        "state_names": {index: f"state_{index}" for index in range(n_components)},
-        **metadata,
-    }
-    return seq_dfs, None, state_mappings

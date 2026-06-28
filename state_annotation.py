@@ -11,33 +11,31 @@ from sklearn.preprocessing import StandardScaler
 try:  # Support both package and repository-root imports.
     from .annotation import AnnotationResult, BaseAnnotator
     from .models import fit_gaussian_hmm
-    from .preprocessing import ColumnConfig, Feature, feature_matrix, normalise_features
+    from .preprocessing import Feature, feature_matrix, normalise_features
 except ImportError:  # pragma: no cover - exercised by direct script usage
     from annotation import AnnotationResult, BaseAnnotator
     from models import fit_gaussian_hmm
-    from preprocessing import ColumnConfig, Feature, feature_matrix, normalise_features
+    from preprocessing import Feature, feature_matrix, normalise_features
 
 
 class HMM(BaseAnnotator):
     """Annotate trajectories with a Gaussian HMM.
 
-    Parameters mirror :class:`BCPA.BCPA`: both receive a
-    ``TrajectoryCollection`` and a list of :class:`Feature` values, run the
-    same UTM feature calculation and gap splitting, and return an
-    :class:`annotation.AnnotationResult`.
+    It receives a ``TrajectoryCollection`` and a list of :class:`Feature`
+    values, runs the shared UTM feature calculation and gap splitting, and
+    returns an :class:`annotation.AnnotationResult`.
     """
 
     def __init__(
         self,
         features: Iterable[Feature | str] | None = None,
-        columns: ColumnConfig | None = None,
         num_states: int = 3,
         scale: bool = True,
         max_gap_factor: float = 5.0,
         n_iter: int = 500,
         random_seeds=range(10),
     ):
-        super().__init__(features=features, columns=columns, max_gap_factor=max_gap_factor)
+        super().__init__(features=features, max_gap_factor=max_gap_factor)
         if num_states < 1:
             raise ValueError("num_states must be at least one.")
         self.num_states = num_states
@@ -45,10 +43,16 @@ class HMM(BaseAnnotator):
         self.n_iter = n_iter
         self.random_seeds = tuple(random_seeds)
 
+    def evaluation_segment_basis(self) -> str:
+        return "state_run"
+
+    def evaluation_metadata(self, annotation) -> dict:
+        return {"configured_num_states": self.num_states}
+
     def annotate(self, trajectory_collection: mpd.TrajectoryCollection) -> AnnotationResult:
         prepared = self.prepare(trajectory_collection)
         self.initialise_annotations(prepared)
-        feature_list = normalise_features(self.features or self.columns.feature_cols)
+        feature_list = normalise_features(self.features)
         arrays = [feature_matrix(sequence, feature_list) for sequence in prepared.sequences]
         if not arrays:
             raise ValueError("No sequences with at least two valid UTM observations are available.")
@@ -109,7 +113,4 @@ class HMM(BaseAnnotator):
                 **fit_metadata,
             },
         )
-        self.last_result = result
-        return result
-
-
+        return self.finalise_result(result)

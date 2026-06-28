@@ -12,14 +12,14 @@ from sklearn.preprocessing import StandardScaler
 
 try:  # Support both package and repository-root imports.
     from .annotation import AnnotationResult, BaseAnnotator
-    from .preprocessing import ColumnConfig, Feature, PreparedSequence, feature_matrix, normalise_features
+    from .preprocessing import Feature, PreparedSequence, feature_matrix, normalise_features
 except ImportError:  # pragma: no cover - exercised by direct script usage
     from annotation import AnnotationResult, BaseAnnotator
-    from preprocessing import ColumnConfig, Feature, PreparedSequence, feature_matrix, normalise_features
+    from preprocessing import Feature, PreparedSequence, feature_matrix, normalise_features
 
 
 def segment_features(values: np.ndarray, change_points: list[int]) -> list[tuple[int, int, np.ndarray]]:
-    """Summarise each BCPA segment with the same statistics as the old script."""
+    """Summarise each BCPA segment for downstream clustering."""
     summaries: list[tuple[int, int, np.ndarray]] = []
     start = 0
     for end in [*change_points, len(values)]:
@@ -36,22 +36,21 @@ def segment_features(values: np.ndarray, change_points: list[int]) -> list[tuple
 class BCPA(BaseAnnotator):
     """Detect change points and cluster resulting behavioural segments.
 
-    It accepts exactly the same collection, ``features`` and ``ColumnConfig``
-    arguments as :class:`state_annotation.HMM`, and returns the same
+    It accepts the same ``TrajectoryCollection`` and ``features`` arguments as
+    :class:`state_annotation.HMM`, and returns the same
     :class:`annotation.AnnotationResult` type.
     """
 
     def __init__(
         self,
         features: Iterable[Feature | str] | None = None,
-        columns: ColumnConfig | None = None,
         penalty: float = 5.0,
         num_clusters: int = 3,
         min_segment_size: int = 3,
         max_gap_factor: float = 5.0,
         random_state: int | None = 0,
     ):
-        super().__init__(features=features, columns=columns, max_gap_factor=max_gap_factor)
+        super().__init__(features=features, max_gap_factor=max_gap_factor)
         if penalty <= 0:
             raise ValueError("penalty must be positive.")
         if num_clusters < 1 or min_segment_size < 1:
@@ -61,8 +60,8 @@ class BCPA(BaseAnnotator):
         self.min_segment_size = min_segment_size
         self.random_state = random_state
 
-    def _change_points(self, sequence: PreparedSequence) -> list[int]:
-        values = feature_matrix(sequence, self.features or self.columns.feature_cols)
+    def change_points(self, sequence: PreparedSequence) -> list[int]:
+        values = feature_matrix(sequence, self.features)
         # PELT cannot form an internal segment at this size.  It is still a
         # valid single behavioural segment and will be clustered below.
         if len(values) < self.min_segment_size * 2:
@@ -71,17 +70,24 @@ class BCPA(BaseAnnotator):
         breakpoints = rpt.Pelt(model="rbf", min_size=self.min_segment_size).fit(scaled).predict(pen=self.penalty)
         return [int(point) for point in breakpoints[:-1] if 0 < point < len(values)]
 
+    def evaluation_metadata(self, annotation) -> dict:
+        return {
+            "configured_num_clusters": self.num_clusters,
+            "bcpa_penalty": self.penalty,
+            "bcpa_min_segment_size": self.min_segment_size,
+        }
+
     def annotate(self, trajectory_collection) -> AnnotationResult:
         prepared = self.prepare(trajectory_collection)
         self.initialise_annotations(prepared)
-        feature_list = normalise_features(self.features or self.columns.feature_cols)
+        feature_list = normalise_features(self.features)
 
         all_segments: list[tuple[PreparedSequence, int, int, int, np.ndarray]] = []
         change_points: dict[object, list] = defaultdict(list)
         next_segment_id = 0
         for sequence_index, sequence in enumerate(prepared.sequences):
             values = feature_matrix(sequence, feature_list)
-            points = self._change_points(sequence)
+            points = self.change_points(sequence)
             for point in points:
                 change_points[sequence.trajectory_id].append(sequence.frame.iloc[point][prepared.time_col])
             for start, end, summary in segment_features(values, points):
@@ -125,8 +131,4 @@ class BCPA(BaseAnnotator):
                 "num_clusters": int(len(np.unique(cluster_labels))) if len(cluster_labels) else 0,
             },
         )
-        self.last_result = result
-        return result
-
-
-BCPAAnnotator = BCPA
+        return self.finalise_result(result)
